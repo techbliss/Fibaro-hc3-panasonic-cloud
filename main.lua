@@ -27,6 +27,9 @@ end
 
 function QuickApp:onInit()
     self:debug("onInit")
+    self:updateView("slider","min","16")
+    self:updateView("slider","max", "28")
+    self:updateView("slider", "value", "21") 
     
     --local lang = self:getVariable('language')
     --lang = tonumber(lang)
@@ -104,8 +107,6 @@ end
 
 
 function QuickApp:turn2()
-    
-
     local http = net.HTTPClient()--{timeout = 5000})  --  5 seconds
     local data = nil
     local url2 = "https://accsmart.panasonic.com/device/group"
@@ -311,8 +312,23 @@ function QuickApp:onfanspeed()
     fanAutoM = fanAutoM
     self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
     print(fanAutoM)
-
 end
+
+function QuickApp:SetVol(value)
+   -- if tempe < 13 and tempe  < 30  then tempe = "-10" ..tempe end
+    QuickApp:sendcommand()
+    tempe = tempe
+    self:updateView("labeltemp", "text", tostring(tempe))
+end
+
+function QuickApp:onSliderChanged(event)
+   tempe = event.values[1]
+
+   self:SetVol(value)
+end
+
+
+
 function QuickApp:turnOn()
     self:debug("binary switch turned off")
     self:updateProperty("value", True)    

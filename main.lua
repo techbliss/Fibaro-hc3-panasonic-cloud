@@ -1,7 +1,7 @@
 -- by @zadow28
 -- feel free to use and adjust code for personal use.
 -- github https://github.com/techbliss/HC3_Quickapp_Panasonic_cloud
--- feel free to contavt me at https://forum.fibaro.com/
+-- feel free to contact me at https://forum.fibaro.com/
 
 ---------------------------------------------------------------------------------------
      -- Panasonic comfort cloud for fibaro home center 3 

@@ -1,61 +1,98 @@
--- Binary switch type should handle actions turnOn, turnOff
--- To update binary switch state, update property "value" with boolean
+-- by @zadow28
+-- feel free to use and adjust code for personal use.
+-- github https://github.com/techbliss/HC3_Quickapp_Panasonic_cloud
+-- feel free to contavt me at https://forum.fibaro.com/
+
+---------------------------------------------------------------------------------------
+     -- Panasonic comfort cloud for fibaro home center 3 
+     -- version 1.0.0
+
+---------------------------------------------------------------------------------------  
+
+---------------------------------------------------------------------------------------
+     -- Panasonic change app version often so we check for new version
+---------------------------------------------------------------------------------------  
 
 
 
--- To update controls you can use method self:updateView(<component ID>, <component property>, <desired value>). Eg:  
--- self:updateView("slider", "value", "55") 
--- self:updateView("button1", "text", "MUTE") 
--- self:updateView("label", "text", "TURNED ON") 
+function QuickApp:getpresentversion()
 
--- This is QuickApp inital method. It is called right after your QuickApp starts (after each save or on gateway startup). 
--- Here you can set some default values, setup http connection or get QuickApp variables.
--- To learn more, please visit: 
---    * https://manuals.fibaro.com/home-center-3/
---    * https://manuals.fibaro.com/home-center-3-quick-apps/
+    local httpver = net.HTTPClient()--{timeout = 5000})  --  5 seconds
+    local urlver = "https://itunes.apple.com/lookup?id=1348640525"
 
-function loop()
-   print("looooooping")
-   
-    setTimeout(loop,2*1000)
-    QuickApp:turn2()
-  -- self:updateView("labeltemp", "text", tostring(tempe)) 
-   -- call function loop again in 1 minute
+    local inputheaders = {
+    ['accept'] = 'application/json', 
+    ['content-type'] = 'application/json', 
+    }
+    httpver:request(urlver, {
+            options = { 
+            method = "GET",
+            headers = inputheaders,
+            }, 
+
+            success = function(response)
+                self:debug(response.status)
+                self:debug(response.data)
+                verbob = json.decode(response.data)
+                APPversion = verbob.results[1].version
+                if verbob.results[1].version == nil then
+                    APPversion = '1.12.0'
+                end
+                if response.status == 200  then
+                    print("Appversion retrieved")
+                end
+
+            end,  --  success
+            
+            error = function(msg)
+                self:debug('Error:'..msg)
+
+            end  --  error
+        }) 
+
 end
 
-
+ 
 
 function QuickApp:onInit()
+    QuickApp:getpresentversion()
+    setInterval(function() QuickApp:getpresentversion() end, 3600*1000) -- check for new appversion every hour
+    ------------------------------------------------------------------------------------------
+                --slider settings
+    --------------------------------------------------------------------------------------------
     self:debug("onInit")
     self:updateView("slider","min","16")
-    self:updateView("slider","max", "28")
+    self:updateView("slider","max", "30")
     self:updateView("slider", "value", "21") 
-    
-    --local lang = self:getVariable('language')
-    --lang = tonumber(lang)
-    --local pass = self:getVariable('password')
-    --pass = json.decode(pass)
-    --local user = self:getVariable('Username')
-    --print(tostring('user'))
+    self:updateView("slider", "step", "0.5")
+
+
     lang = self:getVariable("language")
     pass = self:getVariable("password")
     user = self:getVariable("Username")
-    self:turnOn()
-    QuickApp:turn1()
+    --self:turnOn()
+    fibaro.setTimeout(1000, function() QuickApp:turn1()() end)
     fibaro.setTimeout(3000, function() QuickApp:turn2() end)
-    fibaro.setTimeout(5000, function() QuickApp:gettemp() end)
-    fibaro.setTimeout(604800000, function() QuickApp:onInit() end)
-
-    
+    fibaro.setTimeout(604800000, function() QuickApp:onInit() end) --token restart every month
+    ------------------------------------------------------------------------------------------
+                --hide debug buttons
+    --------------------------------------------------------------------------------------------
+    self:updateView("bntindebugU", "visible", false)
+    self:updateView("btnnow", "visible", false) 
+    self:updateView("btnhis", "visible", false)
 
 end
+
+---------------------------------------------------------------------------------------
+                            -- login
+---------------------------------------------------------------------------------------  
 
 function QuickApp:turn1()
     local http = net.HTTPClient()--{timeout = 5000})  --  5 seconds
     local data = nil
     local url = "https://accsmart.panasonic.com/auth/login/"
     print(url)
-    --print(tostring('user'))
+
 
     local params = {
         ['language'] = lang,
@@ -63,19 +100,19 @@ function QuickApp:turn1()
         ['loginId'] = user
 
         }
-        print(type(params))
-        sert = 'C:\\AMD\\certificatechain.pem' 
+        --print(type(params))
+        --sert = '\certificatechain.pem' 
         print(sert)
     
     local inputheaders = {
         ['X-APP-TYPE'] = '1', 
-        ['X-APP-VERSION'] = '1.12.0',
+        ['X-APP-VERSION'] = APPversion,
         ['user-agent'] = 'G-RAC',
         ['accept'] = 'application/json', 
         ['content-type'] = 'application/json', 
         --['SERVER_PROTOCOL'] = 'HTTP/1.1'
         }
-       -- print(inputheaders)
+
         http:request(url, {
         options = { 
         method = "POST",
@@ -88,32 +125,30 @@ function QuickApp:turn1()
             self:debug(response.data)
             bob = json.decode(response.data)
             accessToken = bob.uToken
-           -- self:updateView("label1", "text" ,"Connected")
-            print(tostring("change label"))
             print(accessToken)
             if response.status == 200  then
-                print("everything okay")
+                print("Token retrieved")
             end
 
         end,  --  success
         
         error = function(msg)
             self:debug('Error:'..msg)
-        --print(data) -- no data
         end  --  error
     })
                
 end
-
-
-function QuickApp:turn2()
+---------------------------------------------------------------------------------------
+                            -- get devices and status
+---------------------------------------------------------------------------------------  
+function QuickApp:turn2()    
     local http = net.HTTPClient()--{timeout = 5000})  --  5 seconds
     local data = nil
     local url2 = "https://accsmart.panasonic.com/device/group"
     
     local inputheaders2 = {
         ['X-APP-TYPE'] = '1', 
-        ['X-APP-VERSION'] = '1.12.0',
+        ['X-APP-VERSION'] = APPversion,
         ['user-agent'] = 'G-RAC',
         ['accept'] = 'application/json', 
         ['content-type'] = 'application/json', 
@@ -130,7 +165,7 @@ function QuickApp:turn2()
         self:debug(response.status)
         self:debug(response.data)
         if response.status == 200  then
-            print("everything okay")
+            print("get devices ok")
         end
 ---------------------------------------------------------------------------------------
                             -- parameters
@@ -156,24 +191,17 @@ function QuickApp:turn2()
 
 
         guid = bob2.groupList[1].deviceList[1].deviceGuid
-        modulenu = bob2.groupList[1].deviceList[1].deviceModuleNumber
-        
+        modulenu = bob2.groupList[1].deviceList[1].deviceModuleNumber     
         nanostat = bob2.groupList[1].deviceList[1].nanoe
-       -- tempe = fibaro.setGlobalVariable("boot", "rrrr")
         self:debug("guid: ", json.encode(guid))
         self:debug("name: ", json.encode(modulenu))
         self:debug("labeltemp: ", json.encode(tempe))
-        --self:updateView("labeltemp", "text", tostring(tempe))
         self:debug("Nano X active: ", json.encode(nano))
-       -- print(tostring(turn2.tempe))
-        --looloop()
         end,  --  success
         
         error = function(response)
             self:debug(response.status)
             if response.status == 401 then 
-               -- setTimeout(QuickApp:turn2(),10*1000)
-               -- QuickApp:turn2() 
                 print("something went wrong")
             end    
         
@@ -184,14 +212,8 @@ function QuickApp:turn2()
     
 end
 
-function QuickApp:Onpressed()
-  --  self:updateView("labeltemp", "text", tostring(tempe))
-    print("YEAAAAAAAAAAAAAAAAAAAAAAAAAAAH")
-
-end
-
 function QuickApp:sendcommand()
-    local hhtpcommand = net.HTTPClient({timeout=2000})
+    local hhtpcommand = net.HTTPClient()
     urlcom = "https://accsmart.panasonic.com/deviceStatus/control"
     local params3 = {
         ['deviceGuid'] = guid,
@@ -215,7 +237,7 @@ function QuickApp:sendcommand()
     }
     local inputheaders3 = {
         ['X-APP-TYPE'] = '1', 
-        ['X-APP-VERSION'] = '1.12.0',
+        ['X-APP-VERSION'] = APPversion,
         ['user-agent'] = 'G-RAC',
         ['accept'] = 'application/json', 
         ['content-type'] = 'application/json', 
@@ -241,16 +263,116 @@ function QuickApp:sendcommand()
         
         error = function(msg)
             self:debug('Error:'..msg)
+        end  --  error
+    })
+end
+
+---------------------------------------------------------------------------------
+                        -- get status now temperute inside etc
+--------------------------------------------------------------------------------
+
+function QuickApp:getNow()
+    local hhtpgetda = net.HTTPClient()
+    urlgetda = "https://accsmart.panasonic.com/deviceStatus/now/"..guid
+
+     local inputheadersda = {
+        ['X-APP-TYPE'] = '1', 
+        ['X-APP-VERSION'] = APPversion,
+        ['user-agent'] = 'G-RAC',
+        ['accept'] = 'application/json', 
+        ['content-type'] = 'application/json', 
+        ["X-User-Authorization"] = accessToken,
+    }
+
+    hhtpgetda:request(urlgetda, {
+        options = { 
+        method = "GET",
+        headers = inputheadersda
+        
+        }, 
+    --params,
+        success = function(response)
+        self:debug(response.status)
+        self:debug(response.data)
+        bob3 = json.decode(response.data)
+        tempe = bob3.parameters.temperatureSet
+       -- print(bob3.parameters.insideTemperature)
+       -- print(parameters.outTemperature)
+        fibaro.setGlobalVariable('inside heatpump temperature', tostring(bob3.parameters.insideTemperature))
+        fibaro.setGlobalVariable('Outside heatpump', tostring(bob3.parameters.outTemperature))
+        self:debug("labeltemp now: ", json.encode(tempe))      
+        if response.status == 200  then
+            print("GET NOOOOOOOOOOOOOOOOOO")
+        end
+
+    end,  --  success
+        
+        error = function(msg)
+            self:debug('Error:'..msg)
+        end  --  error
+    })
+end
+
+---------------------------------------------------------------------------------
+                        -- for future apps History data cost energi etc
+--------------------------------------------------------------------------------
+function QuickApp:getHis()
+    local hhtpgethis = net.HTTPClient()
+    urlgethis = "https://accsmart.panasonic.com/deviceHistoryData/"
+
+
+    local paramshis = {
+        ['dataMode'] = '0',
+        ['date'] = '20210101',
+        ['deviceGuid'] = guid,
+        ['osTimezone'] = '+01:00'
+
+        }
+     local inputheadershis = {
+        ['X-APP-TYPE'] = '1', 
+        ['X-APP-VERSION'] = APPversion,
+        ['user-agent'] = 'G-RAC',
+        ['accept'] = 'application/json', 
+        ['content-type'] = 'application/json', 
+        ["X-User-Authorization"] = accessToken,
+    }
+
+    hhtpgethis:request(urlgethis, {
+        options = { 
+        data = json.encode(paramshis),
+        method = "POST",
+        headers = inputheadershis
+        
+        }, 
+    --params,
+        success = function(response)
+        self:debug(response.status)
+        self:debug(response.data)
+        if response.status == 200  then
+            print("GET HISTORY")
+        end
+    end,  --  success
+        
+        error = function(msg)
+            self:debug('Error:'..msg)
         --print(data) -- no data
         end  --  error
     })
-
-
 end
 function QuickApp:gettemp()
-print("WHYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY")
-   self:updateView("labeltemp", "text", tostring(tempe))
+    QuickApp:getNow()
+    fibaro.setTimeout(1500, function() QuickApp:updatelabel() end)
 end
+
+function QuickApp:updatelabel()
+    self:updateView("labeltemp", "text", json.encode(bob3.parameters.temperatureSet))
+end
+---------------------------------------------------------------------------------
+                        -- On / OFF
+--------------------------------------------------------------------------------
+
+
+
 function QuickApp:offpressed()
     operate = tostring('0')
     print (operate)
@@ -270,49 +392,233 @@ end
 --------------------------------------------------------------------------------
 function QuickApp:press1()
     fanS = tostring('1')
+    ecoM = tostring('0')
     QuickApp:sendcommand()
     fanS = fanS
+    ecoM = ecoM
     self:updateView("labelfan", "text", "Fan speed "..tostring(fanS))
+    self:updateView("labeleco", "text", "Eco mode off")
 end 
 
 function QuickApp:presstwo()
     fanS = tostring('2')
+    ecoM = tostring('0')
+
     QuickApp:sendcommand()
     fanS = fanS
-    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
+    fanAutoM = fanAutoM
+    ecoM = ecoM
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS))
+    self:updateView("labeleco", "text", "Eco mode off")
 end
 
 function QuickApp:presstree()
     fanS = tostring('3')
+    ecoM = tostring('0')
+
     QuickApp:sendcommand()
     fanS = fanS
-    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
+    fanAutoM = fanAutoM
+    ecoM = ecoM
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS))
+    self:updateView("labeleco", "text", "Eco mode off")
 end
 
 function QuickApp:pressfour()
     fanS = tostring('4')
+    ecoM = tostring('0')
+
     QuickApp:sendcommand()
     fanS = fanS
+    fanAutoM = fanAutoM
+    ecoM = ecoM
     self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
+    self:updateView("labeleco", "text", "Eco mode off")
 end
 
 function QuickApp:pressfive()
     fanS = tostring('5')
+    ecoM = tostring('0')
+
     QuickApp:sendcommand()
     fanS = fanS
-    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
+    fanAutoM = fanAutoM
+    ecoM = ecoM
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS))
+    self:updateView("labeleco", "text", "Eco mode off")
 end
 ---------------------------------------------------------------------------------
                         -- AUTOFAN MODES
 --------------------------------------------------------------------------------
 
 function QuickApp:onfanspeed()
-    fanAutoM = tostring('4')
+    fanAutoM = tostring('1')
     QuickApp:sendcommand() 
     fanAutoM = fanAutoM
-    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
-    print(fanAutoM)
+    self:updateView("labelfanu", "text", "Swing mode off "..tostring(fanAutoM)) 
+
 end
+
+function QuickApp:pressedswingau()
+    fanAutoM = tostring('0')
+    QuickApp:sendcommand() 
+    fanAutoM = fanAutoM
+    self:updateView("labelfanu", "text", "Swing mode  auto "..tostring(fanAutoM)) 
+end 
+
+function QuickApp:pressedfantauleftright()
+    fanAutoM = tostring('3')
+    QuickApp:sendcommand() 
+    fanAutoM = fanAutoM
+    self:updateView("labelfanu", "text", "Swing mode left - right "..tostring(fanAutoM)) 
+end
+
+function QuickApp:pressedswingupdao()
+    fanAutoM = tostring('2')
+    QuickApp:sendcommand() 
+    fanAutoM = fanAutoM
+    self:updateView("labelfanu", "text", "Swing mode up - down "..tostring(fanAutoM)) 
+end
+
+
+---------------------------------------------------------------------------------
+                        -- eco modes
+--------------------------------------------------------------------------------
+
+function QuickApp:pressqui()
+    ecoM = tostring('2')
+    QuickApp:sendcommand()
+    if ecoM == '0' then
+        ecoM = 'Auto'   
+    elseif  ecoM == '1' then
+        ecoM = 'powefull'  
+    elseif  ecoM == '2' then
+        ecoM = 'quiet'
+    end  
+    self:updateView("labeleco", "text", "Eco mode "..ecoM)
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS))
+
+    ecoM = ecoM
+end
+
+function QuickApp:Presspowf()
+     ecoM = tostring('1')
+     QuickApp:sendcommand()
+    if ecoM == '0' then
+        ecoM = 'Auto'   
+    elseif  ecoM == '1' then
+        ecoM = 'powefull'  
+    elseif  ecoM == '2' then
+        ecoM = 'quiet'
+    end  
+    self:updateView("labeleco", "text", "Eco mode "..ecoM)
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS))
+
+    ecoM = ecoM
+end
+
+function QuickApp:pressauf()
+    ecoM = tostring('0')
+     QuickApp:sendcommand()
+    if ecoM == '0' then
+        ecoM = 'Auto'   
+    elseif  ecoM == '1' then
+        ecoM = 'powefull'  
+    elseif  ecoM == '2' then
+        ecoM = 'quiet'
+    end  
+    self:updateView("labeleco", "text", "Eco mode "..ecoM)
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS))
+
+    ecoM = ecoM
+end
+
+
+
+
+
+
+
+---------------------------------------------------------------------------------
+                        -- Mode modes
+--------------------------------------------------------------------------------
+function QuickApp:heatpressed()
+    operationM = tostring('3')
+    tempe = self:getVariable("Heat start temp")
+    QuickApp:sendcommand()
+    operationM = operationM
+    tempe = tempe
+    self:updateView("labelmode", "text", "Mode "..tostring(operationM)) 
+    self:updateView("labeltemp", "text", tostring(tempe))
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
+end
+
+function QuickApp:coolpressed()
+    operationM = tostring('2')
+    tempe = self:getVariable("Cool start temp")
+    QuickApp:sendcommand() 
+    operationM = operationM
+    tempe = tempe
+    self:updateView("labelmode", "text", "Mode "..tostring(operationM))
+    self:updateView("labeltemp", "text", tostring(tempe)) 
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
+end
+
+function QuickApp:drypressed()
+    operationM = tostring('3')
+    tempe = self:getVariable("dry start temp")
+    QuickApp:sendcommand() 
+    operationM = operationM
+    tempe = tempe
+    self:updateView("labelmode", "text", "Mode "..tostring(operationM))
+    self:updateView("labeltemp", "text", tostring(tempe))
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
+end
+function QuickApp:fanpressed()
+    operationM = tostring('4')
+    QuickApp:sendcommand()
+    operationM = operationM
+    self:updateView("labelmode", "text", "Mode "..tostring(operationM))
+    self:updateView("labeltemp", "text", tostring(tempe))
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
+end
+function QuickApp:aupressed()
+    operationM = tostring('0')
+    tempe = self:getVariable("Auto start temp")
+    QuickApp:sendcommand()
+    operationM = operationM
+    tempe = tempe
+    self:updateView("labelmode", "text", "Mode "..tostring(operationM))
+    self:updateView("labeltemp", "text", tostring(tempe))
+    self:updateView("labelfan", "text", "Fan speed "..tostring(fanS)) 
+end
+
+---------------------------------------------------------------------------------
+                        -- Nanoe X 
+--------------------------------------------------------------------------------
+function QuickApp:pressedonnano()
+    nano = tostring('2')
+    actualN = tostring('2')
+    QuickApp:sendcommand()
+    self:updateView("labelx", "text", "Nanoe X  "..tostring(nano))
+    nano = nano
+    actualN = actualN
+end
+
+function QuickApp:pressesoffnano()
+    nano = tostring('1')
+    actualN = tostring('1')
+    QuickApp:sendcommand()
+    self:updateView("labelx", "text", "Nanoe X  "..tostring(operationM))
+    nano = nano
+    actualN = actualN
+end
+
+
+
+---------------------------------------------------------------------------------
+                        -- slider
+--------------------------------------------------------------------------------
 
 function QuickApp:SetVol(value)
    -- if tempe < 13 and tempe  < 30  then tempe = "-10" ..tempe end
@@ -328,13 +634,19 @@ function QuickApp:onSliderChanged(event)
 end
 
 
-
 function QuickApp:turnOn()
-    self:debug("binary switch turned off")
-    self:updateProperty("value", True)    
+    operate = tostring('1')
+    QuickApp:sendcommand()
+    operate = operate
+    self:updateView("labeltemp", "text", tostring(tempe)) 
+    self:updateProperty("value", true)   
 end
 
 function QuickApp:turnOff()
-    self:debug("binary switch turned off")
+    operate = tostring('0')
+    print (operate)
+    QuickApp:sendcommand()
+    operate = operate
+    self:updateView("labeltemp", "text", "OFF")  
     self:updateProperty("value", false)    
 end
